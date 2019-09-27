@@ -58,7 +58,7 @@ if ($LogEntries) {
 			$Id=$LogEntry.Id.ToString()
 			$CriticalErrorResultCount++ 
          
-        $CriticalErrorResults="`r`n"+@"				
+        			$CriticalErrorResults="`r`n"+@"				
 				Auftreten: $TimeCreated
 				Level: $Level 
 				Event ID: $Id
@@ -75,7 +75,7 @@ if ($LogEntries) {
 			$Id=$LogEntry.Id.ToString()
 			$WarningResultCount++ 
          
-        $WarningResults="`r`n"+@"
+        			$WarningResults="`r`n"+@"
 				Auftreten: $TimeCreated
 				Level: $Level 
 				Event ID: $Id
@@ -92,7 +92,7 @@ if ($LogEntries) {
 			$Id=$LogEntry.Id.ToString()
 			$InfoResultCount++ 
          
-        $InfoResults="`r`n"+@"				
+        			$InfoResults="`r`n"+@"				
 				Auftreten: $TimeCreated
 				Level: $Level 
 				Event ID: $Id
