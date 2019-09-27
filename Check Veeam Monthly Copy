@@ -1,0 +1,184 @@
+########################################
+# Copy_MGMT_Veeam_EventLogs.ps1        #
+# von Patrick Urfer      			   #
+# Automatisierung von Veeam MGMT       #
+# Version: 23.09.2019				   #
+#               					   #
+########################################
+
+
+
+# Überprüfung in Argumenten
+$ArgLogName = "Veeam Backup" # Veeam backup Ereignisanzeige
+$ArgEntryType = 1,2,3,4 # Anzeige für critical, error, warning und information logs
+$ArgProviderName = "Veeam MP"
+$ArgEventID = 490 # Event ID für copy job vollständig
+
+$ArgBackupJobName = "monthly copy"
+$ArgLastHours = (744)
+
+# Setzen der Default-Werte falls null
+if (!$ArgWarningTH) { $ArgWarningTH = 0 }
+if (!$ArgCriticalTH) { $ArgCriticalTH = 0 }
+if (!$ArgMaxEntries) { $ArgMaxEntries = 50 }
+
+$CriticalErrorResultCount = 0
+$WarningResultCount = 0
+$InfoResultCount = 0
+$EventTypeLoopCount = 0
+$LogNameLoopCount = 0
+$ProviderNameLoopCount = 0
+$EventIDLoopCount = 0
+
+$Properties='Level','Message','ProviderName','TimeCreated','Id'
+
+$Filter = @{
+    LogName = $ArgLogName
+    StartTime = (Get-Date).AddHours(-$ArgLastHours)
+}
+
+if($ArgProviderName) { $Filter += @{ProviderName = $ArgProviderName } }
+if($ArgEventID) { $Filter += @{Id = $ArgEventID } }
+if($ArgEntryType) { $Filter += @{Level = $ArgEntryType } }
+
+# -ea SilentlyContinue entfernt nicht abbrechende Fehler resultierend aus 0 Ereignissen
+$LogEntries = Get-WinEvent -MaxEvents $ArgMaxEntries -FilterHashtable $Filter -ea SilentlyContinue -Oldest | Select-Object -Property $Properties 
+
+if ($LogEntries) {
+
+    ForEach ($LogEntry in $LogEntries) {
+		if ($LogEntry.Message.ToString() -like "*Copy Job `'$ArgBackupJobName`'*")
+		{
+			$Level=$LogEntry.Level.ToString()
+		if (($Level -eq 1) -Or ($Level -eq 2)) # finde critical und errors
+		{
+			$Message=$LogEntry.Message.Substring(0,[System.Math]::Min(180, $LogEntry.Message.Length)).TrimEnd().ToString()
+			$ProviderName=$LogEntry.ProviderName.ToString()
+			$TimeCreated=$LogEntry.TimeCreated.ToString()
+			$Id=$LogEntry.Id.ToString()
+			$CriticalErrorResultCount++ 
+         
+                $CriticalErrorResults="`r`n"+@"				
+				Auftreten: $TimeCreated
+				Level: $Level 
+				Event ID: $Id
+				Quelle: $ProviderName
+				Nachricht: $Message
+				$CriticalErrorResults
+"@
+		}
+		elseif ($Level -eq 3) # finde warnings
+		{
+			$Message=$LogEntry.Message.Substring(0,[System.Math]::Min(180, $LogEntry.Message.Length)).TrimEnd().ToString()
+			$ProviderName=$LogEntry.ProviderName.ToString()
+			$TimeCreated=$LogEntry.TimeCreated.ToString()
+			$Id=$LogEntry.Id.ToString()
+			$WarningResultCount++ 
+         
+                $WarningResults="`r`n"+@"
+				Auftreten: $TimeCreated
+				Level: $Level 
+				Event ID: $Id
+				Quelle: $ProviderName
+				Nachricht: $Message
+				$WarningResults
+"@
+		}
+		else # alle restlichen anzeigen, finde Information (4) Nachrichten
+		{
+			$Message=$LogEntry.Message.Substring(0,[System.Math]::Min(180, $LogEntry.Message.Length)).TrimEnd().ToString()
+			$ProviderName=$LogEntry.ProviderName.ToString()
+			$TimeCreated=$LogEntry.TimeCreated.ToString()
+			$Id=$LogEntry.Id.ToString()
+			$InfoResultCount++ 
+         
+                $InfoResults="`r`n"+@"				
+				Auftreten: $TimeCreated
+				Level: $Level 
+				Event ID: $Id
+				Quelle: $ProviderName
+				Nachricht: $Message
+				$InfoResults
+"@
+		}
+    }
+
+}
+
+}
+
+$Results= @"
+`n $CriticalErrorResults `n $WarningResults `n $InfoResults `n
+"@
+
+if ($ArgEntryType) {
+	$TypeArray = @("all level","critical","error","warning","informational")
+	$LevelString = foreach ($Entry in $ArgEntryType) { 
+	if ($ArgEntryType.Count -gt 1) { 
+		$LevelStringBuild = $TypeArray[$Entry]
+		if ($ArgEntryType.Count -ne $EventTypeLoopCount+1) {
+			$LevelStringBuild +=", "
+		}
+	}
+
+	else { $LevelStringBuild = $TypeArray[$Entry] }
+		$EventTypeLoopCount++
+		$LevelStringBuild
+	}
+}
+
+$LogNameString = foreach ($LogNameEntry in $ArgLogName) { 
+	$LogNameStringBuild += $LogNameEntry
+	if ($ArgLogName.Count -gt 1 -And $ArgLogName.Count -ne $LogNameLoopCount+1) {
+		$LogNameStringBuild += ", "
+		}
+	$LogNameLoopCount++
+	}
+
+$ProviderNameString = foreach ($ProviderNameEntry in $ArgProviderName) { 
+	$ProviderNameStringBuild += $ProviderNameEntry
+	if ($ArgProviderName.Count -gt 1 -And $ArgProviderName.Count -ne $ProviderNameLoopCount+1) {
+		$ProviderNameStringBuild += ", "
+		}
+	$ProviderNameLoopCount++
+	}
+
+$EventIDString = foreach ($EventIDEntry in $ArgEventID) { 
+	$EventIDStringBuild += "$EventIDEntry"
+	if ($ArgEventID.Count -gt 1 -And $ArgEventID.Count -ne $EventIDLoopCount+1) {
+		$EventIDStringBuild += ", "
+		}
+	$EventIDLoopCount++
+	}	
+
+If (($CriticalErrorResultCount -gt 0) -And ($InfoResultCount -lt 1)) {
+        $ResultString += "Copy failed: $CriticalErrorResultCount krittische/r fehler fuer copy job $ArgBackupJobName in den letzten 31 Tagen "
+		$NagiosMetricString += "'Errors'=$CriticalErrorResultCount 'CopyUnknown'=1 'Warnings'= $WarningResultCount "
+		$ExitCode = 1
+    }
+
+If ($WarningResultCount -gt 0) {
+        $ResultString += "Warnung: copy job $ArgBackupJobName hat $WarningResultCount Warn meldungen in den letzten 31 Tagen "
+		If ($ExitCode -ne 1) {
+		$NagiosMetricString += "Warnung: copy job $ArgBackupJobName hat $WarningResultCount warn meldungen in den letzten 31 Tagen "
+		$ExitCode = 0
+		}
+		$NagiosMetricString += "'Warnings'= $WarningResultCount `n"		
+    }
+
+If (($InfoResultCount -lt 1) -And ($WarningResultCount -lt 1) -And ($ExitCode -ne 1)) {
+        $ResultString += "Copy failed: copy job $ArgBackupJobName wurde nicht ausgefuehrt in den letzten 31 Tagen "
+		$NagiosMetricString += "'CopyNotRun'=1 "
+		If ($ExitCode -ne 1) { $ExitCode = 1 }
+    }
+	
+If (($InfoResultCount -ge 1) -And ($CriticalErrorResultCount -eq 0 )){
+        $ResultString += "OK: copy job $ArgBackupJobName war erfolgreich in den letzten 31 Tagen "
+		$NagiosMetricString = "'CopySuccess'=1 "
+		$ExitCode = 0 
+    }
+
+	write-host $ResultString 
+	write-host $Results 
+	write-host $ResultString"|"$NagiosMetricString
+	exit $ExitCode
