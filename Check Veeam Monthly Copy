@@ -1,9 +1,9 @@
 ########################################
 # Copy_MGMT_Veeam_EventLogs.ps1        #
-# von Patrick Urfer      			   #
+# von Patrick Urfer      	       #
 # Automatisierung von Veeam MGMT       #
-# Version: 23.09.2019				   #
-#               					   #
+# Version: 23.09.2019		       #
+#               		       #
 ########################################
 
 
@@ -58,7 +58,7 @@ if ($LogEntries) {
 			$Id=$LogEntry.Id.ToString()
 			$CriticalErrorResultCount++ 
          
-                $CriticalErrorResults="`r`n"+@"				
+                		$CriticalErrorResults="`r`n"+@"				
 				Auftreten: $TimeCreated
 				Level: $Level 
 				Event ID: $Id
@@ -75,7 +75,7 @@ if ($LogEntries) {
 			$Id=$LogEntry.Id.ToString()
 			$WarningResultCount++ 
          
-                $WarningResults="`r`n"+@"
+                		$WarningResults="`r`n"+@"
 				Auftreten: $TimeCreated
 				Level: $Level 
 				Event ID: $Id
@@ -92,7 +92,7 @@ if ($LogEntries) {
 			$Id=$LogEntry.Id.ToString()
 			$InfoResultCount++ 
          
-                $InfoResults="`r`n"+@"				
+                		$InfoResults="`r`n"+@"				
 				Auftreten: $TimeCreated
 				Level: $Level 
 				Event ID: $Id
